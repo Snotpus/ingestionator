@@ -39,11 +39,19 @@ A flexible data ingestion framework with a factory-based extension model for rea
 
 ### 1. Install dependencies
 
+Production:
+
 ```bash
-python -m venv venv
-source venv/bin/activate
-pip install pyyaml pandas duckdb pyarrow boto3
+pip install -r requirements.txt
 ```
+
+Development (includes testing and linting tools):
+
+```bash
+pip install -e ".[dev]"
+```
+
+All core packages are also listed in `pyproject.toml`.
 
 ### 2. Configure
 
@@ -226,6 +234,7 @@ Each layer is independently extensible. See [ARCHITECTURE.md](ARCHITECTURE.md) f
 ```
 config.yaml            Pipeline configuration
 config.py              Configuration loader and validator
+pyproject.toml         Project metadata, deps, tool config
 factories.py           Factory registry pattern
 secret_manager.py      Secret resolution (env + AWS)
 pipeline.py            Pipeline orchestrator
@@ -258,6 +267,51 @@ output/                Generated output
 | `pyarrow` | Parquet file format support |
 | `boto3` | AWS S3 / Secrets Manager integration |
 
+### Dev Dependencies
+
+| Package | Purpose |
+|---------|---------|
+| `pytest` | Test runner |
+| `ruff` | Linter and formatter |
+| `setuptools` | Build backend |
+
+## Testing
+
+Run the test suite:
+
+```bash
+pytest
+```
+
+With coverage:
+
+```bash
+pytest --cov=.
+```
+
+The project has 109 tests across 7 test files covering config, sources, ingestors, targets, pipeline, and integration flows.
+
+## Linting
+
+Run the linter:
+
+```bash
+ruff check .
+```
+
+Auto-fix:
+
+```bash
+ruff check . --fix
+```
+
+## CI
+
+This project uses GitHub Actions. CI runs on every push and pull request to `main` or `master`:
+
+- **pytest** across Python 3.10, 3.11, 3.12, 3.13
+- **ruff** lint check
+
 ## License
 
-Private.
+MIT.
