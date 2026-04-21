@@ -1,0 +1,263 @@
+# Ingestionator
+
+A flexible data ingestion framework with a factory-based extension model for reading from multiple sources, parsing various file formats, and writing to different targets.
+
+```
+                    ┌─────────────┐
+                    │ config.yaml │
+                    └──────┬──────┘
+                           │
+                    ┌──────▼──────┐
+                    │  Config     │ ← load, validate, resolve secrets
+                    └──────┬──────┘
+                           │
+                    ┌──────▼──────┐
+       ─ ─ ─ ─ ─ ─ ─┤  Factory   │ ← registry pattern
+                    └──┬───┬─────┘
+               ┌───────┘   └───────┐
+          ┌────▼────┐      ┌───────▼──────┐
+          │ Sources │      │   Targets    │
+          │ local/  │      │  DuckDB      │
+          │   s3    │      │  Snowflake   │
+          └─────────┘      └──────────────┘
+                           ┌───────▼──────┐
+                           │  Ingestors   │
+                           │   CSV/Parquet│
+                           └──────────────┘
+```
+
+## Features
+
+- **Multiple sources**: local filesystem, S3
+- **Multiple formats**: CSV, Parquet
+- **Multiple targets**: DuckDB (local SQLite-like), Snowflake (cloud data warehouse)
+- **Secret management**: environment variables or AWS Secrets Manager (`$SECRET:` syntax)
+- **Configurable retry**: exponential backoff with configurable attempts
+- **Factory-based extensions**: add new sources, ingestors, or targets with minimal code
+
+## Quick Start
+
+### 1. Install dependencies
+
+```bash
+python -m venv venv
+source venv/bin/activate
+pip install pyyaml pandas duckdb pyarrow boto3
+```
+
+### 2. Configure
+
+Edit `config.yaml` (see [Configuration Reference](#configuration-reference) below):
+
+```yaml
+source:
+  type: local
+  path: ./test_data
+  file_pattern: "*.csv"
+
+target:
+  type: duckdb
+  database: ./output/ingested.db
+  table: ingested_data
+  mode: replace
+
+ingestor:
+  type: csv
+```
+
+### 3. Run
+
+```bash
+# Ingest all files matching the config
+python main.py
+
+# Ingest a single file
+python main.py --file data.csv
+
+# Override source type from CLI
+python main.py --source-type s3
+
+# Override target type from CLI
+python main.py --target-type snowflake
+```
+
+Exit codes: `0` = success, `1` = pipeline error, `2` = config/usage error.
+
+## Configuration Reference
+
+### Pipeline
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `pipeline.name` | `ingestionator` | Pipeline name identifier |
+| `pipeline.version` | `"0.1"` | Pipeline version |
+
+### Source
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `source.type` | `local` | Source type: `local` or `s3` |
+| `source.path` | *(required)* | Path to source files (local) or S3 prefix |
+| `source.file_pattern` | `*` | Glob pattern for file matching |
+
+### Ingestor
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `ingestor.type` | `csv` | Ingestor type: `csv` or `parquet` |
+| `ingestor.csv.delimiter` | `,` | CSV delimiter character |
+| `ingestor.csv.encoding` | `utf-8` | File encoding |
+| `ingestor.csv.header` | `0` | Row number for header |
+| `ingestor.csv.skip_blank_lines` | `true` | Skip blank lines |
+| `ingestor.parquet.engine` | `pyarrow` | Parquet engine |
+| `ingestor.parquet.columns` | `null` | Columns to read |
+| `ingestor.parquet.filters` | `null` | Row group filters |
+
+### Target
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `target.type` | `duckdb` | Target type: `duckdb` or `snowflake` |
+| `target.database` | `./output/ingested.db` | Database path (DuckDB) or connection string (Snowflake) |
+| `target.table` | `ingested_data` | Target table name |
+| `target.mode` | `replace` | Write mode: `replace` or `append` |
+
+### Secrets
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `secrets.aws.enabled` | `false` | Enable AWS Secrets Manager |
+| `secrets.aws.region` | `us-east-1` | AWS region |
+| `secrets.aws.secret_name` | `ingestionator/secrets` | Secret ID in AWS |
+| `secrets.env_prefix` | `INGESTIONATOR` | Env var prefix for secrets |
+
+Secrets are referenced in config as `$SECRET:ref_name`. Resolution order: environment variable (`{PREFIX}_{ref_name}`), then AWS Secrets Manager.
+
+### Error Handling
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `error_handling.retry_attempts` | `3` | Number of retry attempts |
+| `error_handling.backoff_factor` | `2` | Multiplier for exponential backoff |
+| `error_handling.max_delay` | `300` | Maximum delay between retries (seconds) |
+
+### Logging
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `logging.level` | `INFO` | Python logging level |
+| `logging.format` | `%(asctime)s - %(name)s - %(levelname)s - %(message)s` | Log format string |
+| `logging.file` | `./output/pipeline.log` | Log file path |
+
+## CLI Reference
+
+| Flag | Description |
+|------|-------------|
+| `--config PATH` | Path to config YAML (default: `config.yaml`) |
+| `--file PATH` | Ingest a single file instead of the configured source |
+| `--source-type TYPE` | Override `source.type` from config (`local`, `s3`) |
+| `--target-type TYPE` | Override `target.type` from config (`duckdb`, `snowflake`) |
+
+## Usage Examples
+
+### Local CSV to DuckDB (default)
+
+```yaml
+source:
+  type: local
+  path: ./data
+  file_pattern: "*.csv"
+
+target:
+  type: duckdb
+  database: ./output/data.db
+  table: events
+  mode: append
+```
+
+```bash
+python main.py
+```
+
+### S3 CSV to Snowflake
+
+```yaml
+source:
+  type: s3
+  path: my-bucket/data/ingest
+  file_pattern: "*.csv"
+
+target:
+  type: snowflake
+  database: ./output/snowflake_conn.yaml
+  table: raw_events
+  mode: append
+
+secrets:
+  aws:
+    enabled: true
+    region: us-west-2
+```
+
+```bash
+SNOWFLAKE_ACCOUNT=myaccount.snowflakecomputing.com python main.py
+```
+
+### Single file ingestion
+
+```bash
+python main.py --file data/special.csv --target-type duckdb
+```
+
+## Architecture
+
+The pipeline uses a factory-based extension model:
+
+1. **Config** loads and validates `config.yaml`, resolving `$SECRET:` references
+2. **Factory** maintains a registry of source, ingestor, and target types
+3. **Sources** discover and read files (`LocalSource`, `S3Source`)
+4. **Ingestors** parse file bytes into DataFrames (`CSVIngestor`, `ParquetIngestor`)
+5. **Targets** write DataFrames to storage (`DuckDBStorage`, `SnowflakeStorage`)
+
+Each layer is independently extensible. See [ARCHITECTURE.md](ARCHITECTURE.md) for design details and [CONTRIBUTING.md](CONTRIBUTING.md) for adding new connectors.
+
+## Project Structure
+
+```
+config.yaml            Pipeline configuration
+config.py              Configuration loader and validator
+factories.py           Factory registry pattern
+secret_manager.py      Secret resolution (env + AWS)
+pipeline.py            Pipeline orchestrator
+error_handling.py      Retry logic and custom exceptions
+main.py                CLI entry point
+sources/               Data source connectors
+  base.py              SourceBase abstract class
+  local.py             Local filesystem source
+  s3.py                S3 source
+ingestors/             File format processors
+  base.py              IngestorBase abstract class
+  csv.py               CSV parser
+  parquet.py           Parquet parser
+targets/               Database targets
+  base.py              TargetBase abstract class
+  duckdb.py            DuckDB storage
+  snowflake.py         Snowflake storage
+tests/                 Test suite
+test_data/             Sample data
+output/                Generated output
+```
+
+## Dependencies
+
+| Package | Purpose |
+|---------|---------|
+| `pyyaml` | YAML config parsing |
+| `pandas` | DataFrame representation |
+| `duckdb` | Local database target |
+| `pyarrow` | Parquet file format support |
+| `boto3` | AWS S3 / Secrets Manager integration |
+
+## License
+
+Private.

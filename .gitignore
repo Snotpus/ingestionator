@@ -1,0 +1,15 @@
+/test_data/
+/output/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+.pytest_cache/
+.coverage
+.coverage.*
+.cache/
+*/__pycache__/*
+.idea/
+/.claude/
+/.claude/*

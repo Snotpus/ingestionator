@@ -1,0 +1,45 @@
+# ingestionator pipeline configuration
+
+pipeline:
+  name: ingestionator
+  version: "0.1"
+
+source:
+  type: local
+  path: ./test_data
+  file_pattern: "*.csv"
+
+ingestor:
+  type: csv
+  csv:
+    delimiter: ","
+    encoding: utf-8
+    header: 0
+    skip_blank_lines: true
+  parquet:
+    engine: pyarrow
+    columns: null
+    filters: null
+
+target:
+  type: duckdb
+  database: ./output/ingested.db
+  table: ingested_data
+  mode: replace  # replace or append
+
+secrets:
+  aws:
+    enabled: false
+    region: us-east-1
+    secret_name: ingestionator/secrets
+  env_prefix: INGESTIONATOR
+
+error_handling:
+  retry_attempts: 3
+  backoff_factor: 2
+  max_delay: 300  # max delay in seconds between retries
+
+logging:
+  level: INFO
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file: ./output/pipeline.log
