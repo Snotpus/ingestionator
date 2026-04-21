@@ -13,3 +13,8 @@ __pycache__/
 .idea/
 /.claude/
 /.claude/*
+
+# Build artifacts
+*.egg-info/
+.DS_Store
+.ruff_cache/
