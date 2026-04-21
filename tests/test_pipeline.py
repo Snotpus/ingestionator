@@ -67,27 +67,30 @@ class TestPipeline:
 
     def test_source_error_propagates(self, csv_config):
         pipeline = Pipeline(csv_config, Factory(csv_config))
-        with mock.patch.object(pipeline._source, "list_files", side_effect=SourceError("disk fault")):
-            with pytest.raises(IngestionError, match="disk fault"):
-                pipeline.run()
+        with mock.patch.object(pipeline._source, "list_files",
+                               side_effect=SourceError("disk fault")), \
+             pytest.raises(IngestionError, match="disk fault"):
+            pipeline.run()
 
     def test_ingestor_error_propagates(self, tmpdir, csv_config):
         csv_path = os.path.join(tmpdir, "test.csv")
         with open(csv_path, "w") as f:
             f.write("x\n1\n")
         pipeline = Pipeline(csv_config, Factory(csv_config))
-        with mock.patch.object(pipeline._ingestor, "ingest", side_effect=IngestorError("parse fail")):
-            with pytest.raises(IngestionError, match="parse fail"):
-                pipeline.run_file(csv_path)
+        with mock.patch.object(pipeline._ingestor, "ingest",
+                               side_effect=IngestorError("parse fail")), \
+             pytest.raises(IngestionError, match="parse fail"):
+            pipeline.run_file(csv_path)
 
     def test_target_error_propagates(self, tmpdir, csv_config):
         csv_path = os.path.join(tmpdir, "test.csv")
         with open(csv_path, "w") as f:
             f.write("x\n1\n")
         pipeline = Pipeline(csv_config, Factory(csv_config))
-        with mock.patch.object(pipeline._target, "write", side_effect=TargetError("write fail")):
-            with pytest.raises(IngestionError, match="write fail"):
-                pipeline.run_file(csv_path)
+        with mock.patch.object(pipeline._target, "write",
+                               side_effect=TargetError("write fail")), \
+             pytest.raises(IngestionError, match="write fail"):
+            pipeline.run_file(csv_path)
 
 
 # --- retry_with_backoff ---

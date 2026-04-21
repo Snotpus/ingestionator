@@ -128,9 +128,9 @@ def load(path: str = "config.yaml") -> Config:
         with open(path) as f:
             raw = yaml.safe_load(f)
     except FileNotFoundError:
-        raise ConfigurationError(f"Config file not found: {path}", key="file")
+        raise ConfigurationError(f"Config file not found: {path}", key="file") from None
     except yaml.YAMLError as e:
-        raise ConfigurationError(f"Invalid YAML: {e}", key="file")
+        raise ConfigurationError(f"Invalid YAML: {e}", key="file") from None
 
     if not isinstance(raw, dict):
         raise ConfigurationError("Config must be a YAML mapping", key="file")

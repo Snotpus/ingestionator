@@ -74,10 +74,7 @@ def main(argv: list[str] | None = None) -> int:
     pipeline = Pipeline(cfg, factory)
 
     try:
-        if args.file:
-            rows = pipeline.run_file(args.file)
-        else:
-            rows = pipeline.run()
+        rows = pipeline.run_file(args.file) if args.file else pipeline.run()
         print(f"Ingested {rows} rows")
         return 0
     except Exception as e:

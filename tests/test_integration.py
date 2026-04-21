@@ -176,9 +176,10 @@ class TestErrorHandling:
         factory = Factory(cfg)
         pipeline = Pipeline(cfg, factory)
 
-        with mock.patch.object(pipeline._source, "list_files", side_effect=SourceError("disk read error")):
-            with pytest.raises(IngestionError, match="disk read error"):
-                pipeline.run()
+        with mock.patch.object(pipeline._source, "list_files",
+                               side_effect=SourceError("disk read error")), \
+             pytest.raises(IngestionError, match="disk read error"):
+            pipeline.run()
 
     def test_ingestor_error_propagates(self, csv_file, config_path):
         """Pipeline raises IngestionError on ingestor failure."""
@@ -187,9 +188,10 @@ class TestErrorHandling:
         factory = Factory(cfg)
         pipeline = Pipeline(cfg, factory)
 
-        with mock.patch.object(pipeline._ingestor, "ingest", side_effect=IngestorError("bad data")):
-            with pytest.raises(IngestionError, match="bad data"):
-                pipeline.run_file(csv_file)
+        with mock.patch.object(pipeline._ingestor, "ingest",
+                               side_effect=IngestorError("bad data")), \
+             pytest.raises(IngestionError, match="bad data"):
+            pipeline.run_file(csv_file)
 
     def test_target_error_propagates(self, csv_file, config_path):
         """Pipeline raises IngestionError on target failure."""
@@ -198,9 +200,10 @@ class TestErrorHandling:
         factory = Factory(cfg)
         pipeline = Pipeline(cfg, factory)
 
-        with mock.patch.object(pipeline._target, "write", side_effect=TargetError("write failed")):
-            with pytest.raises(IngestionError, match="write failed"):
-                pipeline.run_file(csv_file)
+        with mock.patch.object(pipeline._target, "write",
+                               side_effect=TargetError("write failed")), \
+             pytest.raises(IngestionError, match="write failed"):
+            pipeline.run_file(csv_file)
 
     def test_main_returns_exit_code_on_failure(self, config_path, tmpdir):
         # Write a valid config but with a source file that doesn't exist as a file
