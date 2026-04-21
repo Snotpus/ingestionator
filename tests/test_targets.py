@@ -21,7 +21,11 @@ class TestDuckDBStorage:
                 "database": db_path,
                 "table": "test_table",
                 "mode": "replace",
-            }
+            },
+            "file_to_table": {
+                "default": "test_table",
+                "users.csv": "users",
+            },
         })
 
     def test_write_and_read_roundtrip(self, db_config, tmp_path):
@@ -32,7 +36,11 @@ class TestDuckDBStorage:
                 "database": db_path,
                 "table": "test_table",
                 "mode": "replace",
-            }
+            },
+            "file_to_table": {
+                "default": "test_table",
+                "users.csv": "users",
+            },
         })
         df = pd.DataFrame({"name": ["Alice", "Bob"], "age": [30, 25]})
         tgt = DuckDBStorage(cfg, path=db_path)
@@ -40,6 +48,48 @@ class TestDuckDBStorage:
         result = tgt.read()
         assert len(result) == 2
         assert list(result.columns) == ["name", "age"]
+
+    def test_write_with_file_mapping(self, tmp_path):
+        """Write with filename mapping creates separate table."""
+        db_path = str(tmp_path / "mapped.db")
+        cfg = Config({
+            "target": {
+                "type": "duckdb",
+                "database": db_path,
+                "table": "default_table",
+                "mode": "replace",
+            },
+            "file_to_table": {
+                "default": "default_table",
+                "users.csv": "users",
+            },
+        })
+        tgt = DuckDBStorage(cfg, path=db_path)
+        tgt.write(pd.DataFrame({"x": [1]}), filename="users.csv")
+        target = DuckDBStorage(cfg, path=db_path)
+        result = target.read(table="users")
+        assert len(result) == 1
+        assert list(result.columns) == ["x"]
+
+    def test_write_falls_back_to_default(self, tmp_path):
+        """Write with unmapped filename falls back to default table."""
+        db_path = str(tmp_path / "fallback.db")
+        cfg = Config({
+            "target": {
+                "type": "duckdb",
+                "database": db_path,
+                "table": "default_table",
+                "mode": "replace",
+            },
+            "file_to_table": {
+                "default": "default_table",
+                "users.csv": "users",
+            },
+        })
+        tgt = DuckDBStorage(cfg, path=db_path)
+        tgt.write(pd.DataFrame({"x": [1]}), filename="unknown.csv")
+        result = tgt.read(table="default_table")
+        assert len(result) == 1
 
     def test_write_append_accumulates(self, tmp_path):
         """Multiple writes with append mode accumulate rows."""
@@ -50,7 +100,10 @@ class TestDuckDBStorage:
                 "database": db_path,
                 "table": "test_table",
                 "mode": "append",
-            }
+            },
+            "file_to_table": {
+                "default": "test_table",
+            },
         })
         df1 = pd.DataFrame({"x": [1]})
         tgt = DuckDBStorage(cfg, path=db_path)
@@ -69,7 +122,10 @@ class TestDuckDBStorage:
                 "database": temp_db,
                 "table": "t",
                 "mode": "replace",
-            }
+            },
+            "file_to_table": {
+                "default": "t",
+            },
         })
         tgt = DuckDBStorage(cfg, path=temp_db)
         tgt.write(pd.DataFrame({"a": [1]}))
@@ -109,6 +165,10 @@ class TestSnowflakeStorage:
                     "password_secret": "PASS",
                 },
             },
+            "file_to_table": {
+                "default": "ingested",
+                "users.csv": "users",
+            },
         })
 
     def test_type_name(self):
@@ -122,12 +182,48 @@ class TestSnowflakeStorage:
         assert tgt._database == "TEST_DB"
         assert tgt._warehouse == "ETL_WH"
 
+    def test_resolve_table_with_mapping(self, sf_config):
+        tgt = SnowflakeStorage(sf_config)
+        assert tgt._resolve_table("users.csv") == "users"
+        assert tgt._resolve_table("other.csv") == "ingested"
+
+    def test_resolve_table_without_mapping(self):
+        cfg = Config({"target": {"type": "snowflake", "table": "mytbl"}})
+        tgt = SnowflakeStorage(cfg)
+        assert tgt._resolve_table("any.csv") == "mytbl"
+
     def test_register(self, sf_config):
         from factories import Factory
         f = Factory(sf_config, register_defaults=False)
         tgt = SnowflakeStorage(sf_config)
         tgt.register(f)
         assert "snowflake" in f._registry
+
+    def test_write_with_file_mapping(self):
+        """SnowflakeStorage write resolves table from filename."""
+        cfg = Config({
+            "target": {
+                "type": "snowflake",
+                "table": "default",
+                "mode": "replace",
+                "snowflake": {
+                    "account": "testacct",
+                    "database": "TEST_DB",
+                    "schema": "PUBLIC",
+                    "warehouse": "ETL_WH",
+                    "role": "ADMIN",
+                    "user_secret": "USER",
+                    "password_secret": "PASS",
+                },
+            },
+            "file_to_table": {
+                "default": "default",
+                "users.csv": "users_table",
+            },
+        })
+        tgt = SnowflakeStorage(cfg)
+        assert tgt._resolve_table("users.csv") == "users_table"
+        assert tgt._resolve_table("other.csv") == "default"
 
 
 # --- TargetBase ---

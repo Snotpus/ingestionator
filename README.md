@@ -127,8 +127,27 @@ Exit codes: `0` = success, `1` = pipeline error, `2` = config/usage error.
 |-----|---------|-------------|
 | `target.type` | `duckdb` | Target type: `duckdb` or `snowflake` |
 | `target.database` | `./output/ingested.db` | Database path (DuckDB) or connection string (Snowflake) |
-| `target.table` | `ingested_data` | Target table name |
+| `target.table` | `ingested_data` | Default table name (used when no file_to_table mapping) |
 | `target.mode` | `replace` | Write mode: `replace` or `append` |
+
+### File to Table Mapping
+
+By default every file writes to the same `target.table`. Use `file_to_table` to send each source file to its own table:
+
+| Key | Type | Description |
+|-----|------|-------------|
+| `file_to_table.default` | string | Fallback table name for unmapped files |
+| `file_to_table.<filename>` | string | Table name for the named file |
+
+```yaml
+file_to_table:
+  default: ingested_data
+  users.csv: users
+  events.csv: events
+  products.csv: products
+```
+
+Files not listed fall back to `default`. Remove the `file_to_table` block entirely to restore the single-table behavior.
 
 ### Secrets
 
@@ -186,6 +205,28 @@ target:
 ```bash
 python main.py
 ```
+
+### Per-file table mapping
+
+```yaml
+source:
+  type: local
+  path: ./data
+  file_pattern: "*.csv"
+
+target:
+  type: duckdb
+  database: ./output/data.db
+  table: raw      # fallback table for unmapped files
+
+file_to_table:
+  default: raw
+  users.csv: users
+  events.csv: events
+  products.csv: products
+```
+
+`users.csv` writes to the `users` table, `events.csv` to `events`, and any unmapped file goes to `raw`. Each file gets its own separate table — no more overwriting.
 
 ### S3 CSV to Snowflake
 
@@ -289,7 +330,7 @@ With coverage:
 pytest --cov=.
 ```
 
-The project has 109 tests across 7 test files covering config, sources, ingestors, targets, pipeline, and integration flows.
+The project has 114 tests across 7 test files covering config, sources, ingestors, targets, pipeline, and integration flows.
 
 ## Linting
 

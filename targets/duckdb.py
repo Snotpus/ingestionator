@@ -28,29 +28,42 @@ class DuckDBStorage(TargetBase):
 
     type_name = "duckdb"
 
-    def __init__(self, config: Config, path: str | None = None, table: str | None = None):
+    def __init__(self, config: Config, path: str | None = None):
         super().__init__(config)
         self._db_path = path or config.get("target.database", "./output/ingested.db")
-        self._table = _validate_table_name(table or config.get("target.table", "ingested_data"))
         self._mode = config.get("target.mode", "replace")
+        self._file_to_table = config.get("file_to_table", {})
+        self._table = _validate_table_name(config.get("target.table", "ingested_data"))
 
-    def write(self, df: pd.DataFrame) -> None:
+    def _resolve_table(self, filename: str | None = None) -> str:
+        """Resolve table name from filename using file_to_table mapping."""
+        if filename and self._file_to_table:
+            default_table = self._file_to_table.get("default", "ingested_data")
+            mapping = {k: v for k, v in self._file_to_table.items() if k != "default"}
+            resolved = mapping.get(filename, default_table)
+            return _validate_table_name(resolved)
+        return self._table
+
+    def write(self, df: pd.DataFrame, filename: str | None = None) -> None:
         """Write a DataFrame to a DuckDB table."""
         import os
-
+        table = self._resolve_table(filename)
+        self._last_write_table = table
         os.makedirs(os.path.dirname(self._db_path) or ".", exist_ok=True)
         conn = duckdb.connect(self._db_path)
         if self._mode == "replace":
-            conn.execute(f"DROP TABLE IF EXISTS {self._table}")
-            conn.execute(f"CREATE TABLE {self._table} AS SELECT * FROM df")
+            conn.execute(f"DROP TABLE IF EXISTS {table}")
+            conn.execute(f"CREATE TABLE {table} AS SELECT * FROM df")
         else:
-            conn.execute(f"CREATE TABLE IF NOT EXISTS {self._table} AS SELECT * FROM df LIMIT 0")
-            conn.execute(f"INSERT INTO {self._table} SELECT * FROM df")
+            conn.execute(f"CREATE TABLE IF NOT EXISTS {table} AS SELECT * FROM df LIMIT 0")
+            conn.execute(f"INSERT INTO {table} SELECT * FROM df")
         conn.close()
 
-    def read(self) -> pd.DataFrame:
+    def read(self, table: str | None = None) -> pd.DataFrame:
         """Read all data from the target table."""
+        if table is None:
+            table = self._table
         conn = duckdb.connect(self._db_path)
-        result = conn.execute(f"SELECT * FROM {self._table}").fetchdf()
+        result = conn.execute(f"SELECT * FROM {table}").fetchdf()
         conn.close()
         return result

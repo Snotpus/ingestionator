@@ -1,6 +1,7 @@
 """Pipeline orchestrator for ingestionator."""
 
 import logging
+import os
 
 from config import Config
 from error_handling import IngestionError, retry_with_backoff
@@ -39,7 +40,8 @@ class Pipeline:
         logger.info("Processing: %s", path)
         data = self._source.read_file(path)
         df = self._ingestor.ingest(data)
-        self._target.write(df)
+        filename = os.path.basename(path)
+        self._target.write(df, filename=filename)
         rows = len(df)
         logger.info("Ingested %d rows from %s", rows, path)
         return rows

@@ -108,6 +108,12 @@ class Config:
         if not self.get("source.path"):
             raise ConfigurationError("source.path is required", key="source.path")
 
+        # Validate file_to_table defaults to a valid table name if present
+        file_to_table = self.get("file_to_table")
+        if file_to_table is not None:
+            if "default" not in file_to_table:
+                raise ConfigurationError("file_to_table.default is required when file_to_table is defined", key="file_to_table.default")
+
     def validate_all(self) -> None:
         """Full validation (all sections)."""
         return self.validate()

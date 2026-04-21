@@ -27,6 +27,12 @@ target:
   table: ingested_data
   mode: replace  # replace or append
 
+file_to_table:
+  default: ingested_data
+  users.csv: users
+  events.csv: events
+  products.csv: products
+
 secrets:
   aws:
     enabled: false

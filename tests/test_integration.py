@@ -40,6 +40,9 @@ def config_path(tmpdir):
             "table": "test_data",
             "mode": "replace",
         },
+        "file_to_table": {
+            "default": "test_data",
+        },
         "secrets": {"aws": {"enabled": False}, "env_prefix": "TEST"},
         "error_handling": {"retry_attempts": 1, "backoff_factor": 2, "max_delay": 1},
         "logging": {"level": "CRITICAL"},

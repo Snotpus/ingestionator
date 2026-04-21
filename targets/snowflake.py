@@ -39,6 +39,7 @@ class SnowflakeStorage(TargetBase):
         self._role = role or config.get("target.snowflake.role")
         self._table = _validate_table_name(config.get("target.table", "ingested_data"))
         self._mode = config.get("target.mode", "replace")
+        self._file_to_table = config.get("file_to_table", {})
         self._conn = None
 
     def _get_connection(self):
@@ -65,25 +66,35 @@ class SnowflakeStorage(TargetBase):
             )
         return self._conn
 
-    def write(self, df: pd.DataFrame) -> None:
+    def _resolve_table(self, filename: str | None = None) -> str:
+        """Resolve table name from filename using file_to_table mapping."""
+        if filename and self._file_to_table:
+            default_table = self._file_to_table.get("default", "ingested_data")
+            mapping = {k: v for k, v in self._file_to_table.items() if k != "default"}
+            resolved = mapping.get(filename, default_table)
+            return _validate_table_name(resolved)
+        return self._table
+
+    def write(self, df: pd.DataFrame, filename: str | None = None) -> None:
         """Write a DataFrame to a Snowflake table using batch inserts."""
         conn = self._get_connection()
         cursor = conn.cursor()
+        table = self._resolve_table(filename)
 
         if self._mode == "replace":
-            cursor.execute(f"DROP TABLE IF EXISTS {self._table}")
+            cursor.execute(f"DROP TABLE IF EXISTS {table}")
 
         # Create table if it doesn't exist
         if df.empty:
             return
 
         columns = [f"`{col}` VARCHAR" for col in df.columns]
-        create_sql = f"CREATE TABLE IF NOT EXISTS {self._table} ({', '.join(columns)})"
+        create_sql = f"CREATE TABLE IF NOT EXISTS {table} ({', '.join(columns)})"
         cursor.execute(create_sql)
 
         # Build insert statement
         placeholders = ", ".join(["%s"] * len(df.columns))
-        insert_sql = f"INSERT INTO {self._table} VALUES ({placeholders})"
+        insert_sql = f"INSERT INTO {table} VALUES ({placeholders})"
 
         # Batch insert
         batch_size = 1000

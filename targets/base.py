@@ -20,8 +20,13 @@ class TargetBase(ABC):
         self.config = config
 
     @abstractmethod
-    def write(self, df: pd.DataFrame) -> None:
-        """Write a DataFrame to the target storage."""
+    def write(self, df: pd.DataFrame, filename: str | None = None) -> None:
+        """Write a DataFrame to the target storage.
+
+        Args:
+            df: DataFrame to write.
+            filename: Source filename (if available), used for file-to-table mapping.
+        """
         ...
 
     @abstractmethod
