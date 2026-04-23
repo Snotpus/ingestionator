@@ -307,7 +307,8 @@ class TestSnowflakeStorage:
     def test_resolve_table_with_directory_name_and_filename_override(self):
         """Exact filename match wins over directory name match."""
         cfg = Config({
-            "target": {"type": "snowflake", "table": "default", "mode": "replace", "snowflake": {"account": "a", "database": "DB", "user_secret": "U", "password_secret": "P"}},
+            "target": {"type": "snowflake", "table": "default", "mode": "replace", "snowflake":
+                        {"account": "a", "database": "DB", "user_secret": "U", "password_secret": "P"}},
             "file_to_table": {
                 "default": "default",
                 "datafile.csv": "file_override",
