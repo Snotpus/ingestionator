@@ -143,6 +143,59 @@ class TestDuckDBStorage:
         tgt.register(f)
         assert "duckdb" in f._registry
 
+    def test_resolve_table_with_directory_name(self, tmp_path):
+        """Parent directory name is used as table when filename doesn't match."""
+        db_path = str(tmp_path / "dir_table.db")
+        cfg = Config({
+            "target": {
+                "type": "duckdb",
+                "database": db_path,
+                "table": "default_table",
+                "mode": "replace",
+            },
+            "file_to_table": {
+                "default": "default_table",
+                "customers": "customers_table",
+            },
+        })
+        tgt = DuckDBStorage(cfg, path=db_path)
+        assert tgt._resolve_table("customers/20240112/datafile.csv") == "customers_table"
+        assert tgt._resolve_table("customers/20240212/datafile1.csv") == "customers_table"
+
+    def test_write_uses_directory_as_table_name(self, tmp_path):
+        """Files in customer directory write to customers_table."""
+        db_path = str(tmp_path / "dir_writes.db")
+        cfg = Config({
+            "target": {
+                "type": "duckdb",
+                "database": db_path,
+                "table": "default_table",
+                "mode": "replace",
+            },
+            "file_to_table": {
+                "default": "default_table",
+                "customers": "customers_table",
+            },
+        })
+        tgt = DuckDBStorage(cfg, path=db_path)
+        tgt.write(pd.DataFrame({"id": [1, 2]}), filename="customers/20240112/datafile.csv")
+        result = tgt.read(table="customers_table")
+        assert len(result) == 2
+
+    def test_filename_match_takes_priority_over_directory(self, tmp_path):
+        """Exact filename match wins over directory name match."""
+        db_path = str(tmp_path / "priority.db")
+        cfg = Config({
+            "target": {"type": "duckdb", "database": db_path, "table": "t", "mode": "replace"},
+            "file_to_table": {
+                "default": "default_table",
+                "datafile.csv": "file_override",
+                "customers": "dir_override",
+            },
+        })
+        tgt = DuckDBStorage(cfg, path=db_path)
+        assert tgt._resolve_table("customers/datafile.csv") == "file_override"
+
 
 # --- SnowflakeStorage ---
 
@@ -224,6 +277,45 @@ class TestSnowflakeStorage:
         tgt = SnowflakeStorage(cfg)
         assert tgt._resolve_table("users.csv") == "users_table"
         assert tgt._resolve_table("other.csv") == "default"
+
+    def test_resolve_table_with_directory_name(self):
+        """Parent directory name is used as table when filename doesn't match."""
+        cfg = Config({
+            "target": {
+                "type": "snowflake",
+                "table": "ingested",
+                "mode": "replace",
+                "snowflake": {
+                    "account": "testacct",
+                    "database": "TEST_DB",
+                    "schema": "PUBLIC",
+                    "warehouse": "ETL_WH",
+                    "role": "ADMIN",
+                    "user_secret": "USER",
+                    "password_secret": "PASS",
+                },
+            },
+            "file_to_table": {
+                "default": "ingested",
+                "customers": "customers_table",
+            },
+        })
+        tgt = SnowflakeStorage(cfg)
+        assert tgt._resolve_table("customers/20240112/datafile.csv") == "customers_table"
+        assert tgt._resolve_table("customers/20240212/datafile1.csv") == "customers_table"
+
+    def test_resolve_table_with_directory_name_and_filename_override(self):
+        """Exact filename match wins over directory name match."""
+        cfg = Config({
+            "target": {"type": "snowflake", "table": "default", "mode": "replace", "snowflake": {"account": "a", "database": "DB", "user_secret": "U", "password_secret": "P"}},
+            "file_to_table": {
+                "default": "default",
+                "datafile.csv": "file_override",
+                "customers": "dir_override",
+            },
+        })
+        tgt = SnowflakeStorage(cfg)
+        assert tgt._resolve_table("customers/datafile.csv") == "file_override"
 
 
 # --- TargetBase ---

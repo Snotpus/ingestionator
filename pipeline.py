@@ -35,12 +35,16 @@ class Pipeline:
     def total_rows(self) -> int:
         return self._total_rows
 
-    def _run_file(self, path: str) -> int:
+    def _run_file(self, path: str, filename: str | None = None) -> int:
         """Ingest a single file. Decorated with retry logic."""
         logger.info("Processing: %s", path)
+        if filename is None:
+            source_path = self._source.config.get("source.path", "").rstrip(os.sep)
+            rel_path = path.replace(source_path, "").lstrip(os.sep)
+            if rel_path:
+                filename = rel_path
         data = self._source.read_file(path)
         df = self._ingestor.ingest(data)
-        filename = os.path.basename(path)
         self._target.write(df, filename=filename)
         rows = len(df)
         logger.info("Ingested %d rows from %s", rows, path)

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from typing import TYPE_CHECKING
 
 import pandas as pd
@@ -67,12 +68,27 @@ class SnowflakeStorage(TargetBase):
         return self._conn
 
     def _resolve_table(self, filename: str | None = None) -> str:
-        """Resolve table name from filename using file_to_table mapping."""
+        """Resolve table name from filename using file_to_table mapping.
+
+        Matching priority:
+        1. Exact filename match (includes relative path like customers/datafile.csv)
+        2. Basename match (e.g., datafile.csv)
+        3. Any parent directory name match (deepest first)
+        4. Default fallback
+        """
         if filename and self._file_to_table:
             default_table = self._file_to_table.get("default", "ingested_data")
             mapping = {k: v for k, v in self._file_to_table.items() if k != "default"}
-            resolved = mapping.get(filename, default_table)
-            return _validate_table_name(resolved)
+            if filename in mapping:
+                return _validate_table_name(mapping[filename])
+            basename = os.path.basename(filename)
+            if basename in mapping:
+                return _validate_table_name(mapping[basename])
+            parts = filename.split(os.path.sep)
+            for part in reversed(parts[:-1]):
+                if part in mapping:
+                    return _validate_table_name(mapping[part])
+            return _validate_table_name(default_table)
         return self._table
 
     def write(self, df: pd.DataFrame, filename: str | None = None) -> None:

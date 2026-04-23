@@ -19,7 +19,7 @@ class LocalSource(SourceBase):
         path = self.config.get("source.path", "./test_data")
         pattern = self.config.get("source.file_pattern", "*")
         full_pattern = os.path.join(path, pattern)
-        return sorted(glob.glob(full_pattern))
+        return sorted(glob.glob(full_pattern, recursive=True))
 
     def read_file(self, path: str) -> bytes:
         """Read file bytes from the local filesystem."""

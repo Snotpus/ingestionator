@@ -217,6 +217,27 @@ The pipeline decorates `_run_file()` with this decorator, so individual file ing
 3. Call `resolve_config()` to recursively replace all `$SECRET:` references
 4. Create new `Config` instance with resolved dict
 
+## File-to-Table Mapping
+
+The `_resolve_table()` method in `DuckDBStorage` and `SnowflakeStorage` determines which table a file will be written to based on the filename passed from `pipeline.py`. When processing files from subdirectories (e.g., with `**/*.csv` pattern), the filename is the relative path from the source directory.
+
+Matching priority (deepest first):
+
+1. **Exact relative path** — e.g., `customers/datafile.csv` → matches `customers/datafile.csv` key
+2. **Basename** — e.g., `datafile.csv` → matches `datafile.csv` key
+3. **Directory names** — walks up parent directories from deepest to shallowest. e.g., `customers/20240112/datafile.csv` checks `20240112`, then `customers`
+4. **Default** — falls back to `file_to_table.default`
+
+Example resolution steps for `customers/20240112/datafile.csv`:
+
+```
+Step 1: "customers/20240112/datafile.csv" not in mapping
+Step 2: "datafile.csv" (basename) not in mapping
+Step 3: Check parent dirs from deepest:
+        20240112 → not in mapping
+        customers → in mapping! → return target name
+```
+
 ## Key Files
 
 | File | Responsibility |

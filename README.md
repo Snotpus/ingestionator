@@ -106,7 +106,7 @@ Exit codes: `0` = success, `1` = pipeline error, `2` = config/usage error.
 |-----|---------|-------------|
 | `source.type` | `local` | Source type: `local` or `s3` |
 | `source.path` | *(required)* | Path to source files (local) or S3 prefix |
-| `source.file_pattern` | `*` | Glob pattern for file matching |
+| `source.file_pattern` | `*` | Glob pattern for file matching. Use `**/*.csv` for recursive matching into subdirectories |
 
 ### Ingestor
 
@@ -132,12 +132,19 @@ Exit codes: `0` = success, `1` = pipeline error, `2` = config/usage error.
 
 ### File to Table Mapping
 
-By default every file writes to the same `target.table`. Use `file_to_table` to send each source file to its own table:
+By default every file writes to the same `target.table`. Use `file_to_table` to send each source file to its own table. Keys can be filenames or directory names:
 
 | Key | Type | Description |
 |-----|------|-------------|
 | `file_to_table.default` | string | Fallback table name for unmapped files |
-| `file_to_table.<filename>` | string | Table name for the named file |
+| `file_to_table.<filename>` | string | Table name for a specific file (e.g., `users.csv`) |
+| `file_to_table.<dir>` | string | Table name for all files in a directory (e.g., `customers`) |
+
+Matching priority (deepest first):
+1. **Exact relative path match** — e.g., `customers/datafile.csv`
+2. **Basename match** — e.g., `datafile.csv`
+3. **Directory name match** — matches any parent directory (deepest first). e.g., `customers/20240112/datafile.csv` → `customers`
+4. **Default fallback** — if no key matches
 
 ```yaml
 file_to_table:
@@ -145,9 +152,30 @@ file_to_table:
   users.csv: users
   events.csv: events
   products.csv: products
+  customers: customers_table
 ```
 
 Files not listed fall back to `default`. Remove the `file_to_table` block entirely to restore the single-table behavior.
+
+#### Example: Multi-level directory mapping
+
+Given this config:
+```yaml
+file_to_table:
+  default: raw
+  orders.csv: orders
+  customers: customers
+```
+
+| File Path | Resolves To |
+|-----------|-------------|
+| `users.csv` | `users` (no match, falls to `default: raw`) |
+| `customers/20240112/file1.csv` | `customers_table` (directory match) |
+| `customers/20240212/file2.csv` | `customers_table` (directory match) |
+| `orders/20240112/orders.csv` | `orders` (exact match) |
+| `other/unknown.csv` | `raw` (default) |
+
+> **Tip:** Use `**/*.csv` as your `file_pattern` to recursively discover files in subdirectories.
 
 ### Secrets
 
@@ -330,7 +358,7 @@ With coverage:
 pytest --cov=.
 ```
 
-The project has 114 tests across 7 test files covering config, sources, ingestors, targets, pipeline, and integration flows.
+The project has 119 tests across 7 test files covering config, sources, ingestors, targets, pipeline, and integration flows.
 
 ## Linting
 
